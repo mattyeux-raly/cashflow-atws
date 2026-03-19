@@ -1,0 +1,19 @@
+{
+  "name": "cashflow-pennylane",
+  "private": true,
+  "packageManager": "pnpm@10.32.1",
+  "engines": { "node": ">=20.0.0" },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "security-audit": "pnpm audit --audit-level moderate",
+    "check-secrets": "grep -rn 'sk_live\\|sk_test\\|eyJ\\|PRIVATE_KEY\\|SECRET' --include='*.ts' --include='*.tsx' --include='*.js' --exclude-dir=node_modules || echo 'No secrets found'"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0",
+    "typescript": "^5.7.0"
+  }
+}

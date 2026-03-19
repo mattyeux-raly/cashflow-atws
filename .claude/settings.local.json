@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm --version)",
+      "Bash(npm ls:*)",
+      "Bash(corepack --version)",
+      "Bash(COREPACK_ENABLE_STRICT=0 pnpm install --no-frozen-lockfile)",
+      "Bash(pnpm approve-builds:*)",
+      "Bash(npx vitest:*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(netstat -ano)",
+      "Bash(npx tsc:*)",
+      "Bash(ls node_modules/.pnpm/@supabase+supabase-js*/node_modules/@supabase/supabase-js/package.json)",
+      "Bash(grep -A2 '\"\"version\"\"' node_modules/.pnpm/@supabase+supabase-js@2.99.2/node_modules/@supabase/supabase-js/package.json)",
+      "Bash(npx vite:*)"
+    ]
+  }
+}

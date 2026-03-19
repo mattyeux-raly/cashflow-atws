@@ -1,0 +1,16 @@
+{
+  "name": "@cashflow/server",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'no lint configured'"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.47.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}
