@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { computeCashflow, computeBFR, computeBurnRate } from '../src/cashflow/cashflow.calculator';
-import { categorizePcgAccount } from '../src/cashflow/cashflow.categorizer';
+import { categorizeByLabel } from '../src/cashflow/cashflow.categorizer';
 import type { Transaction, CashflowPeriod } from '@cashflow/shared';
 
 function makeTx(overrides: Partial<Transaction> & { date: string; amount: number; cashflowType: Transaction['cashflowType'] }): Transaction {
@@ -174,53 +174,55 @@ describe('computeCashflow', () => {
   });
 });
 
-describe('categorizePcgAccount', () => {
-  it('categorizes class 70x as operating_income', () => {
-    expect(categorizePcgAccount('701').type).toBe('operating_income');
-    expect(categorizePcgAccount('706').type).toBe('operating_income');
-    expect(categorizePcgAccount('707').type).toBe('operating_income');
+describe('categorizeByLabel', () => {
+  it('categorizes bank receipts as operating_income', () => {
+    expect(categorizeByLabel('VIR RECU CLIENT HOTEL BELLEVUE', 4100).type).toBe('operating_income');
+    expect(categorizeByLabel('ENCAISSEMENT CB VENTES COMPTOIR', 3850).type).toBe('operating_income');
+    expect(categorizeByLabel('REMISE CHEQUE CLIENT MARTIN', 2000).type).toBe('operating_income');
   });
 
-  it('categorizes class 60x-62x as operating_expense', () => {
-    expect(categorizePcgAccount('601').type).toBe('operating_expense');
-    expect(categorizePcgAccount('613').type).toBe('operating_expense');
-    expect(categorizePcgAccount('622').type).toBe('operating_expense');
+  it('categorizes rent and salary as operating_expense', () => {
+    expect(categorizeByLabel('LOYER LOCAL COMMERCIAL OCT 2025', -1800).type).toBe('operating_expense');
+    expect(categorizeByLabel('VIREMENT PAIE SALAIRES OCTOBRE', -5200).type).toBe('operating_expense');
+    expect(categorizeByLabel('URSSAF COTISATIONS T3 2025', -2340).type).toBe('operating_expense');
   });
 
-  it('categorizes class 64x as operating_expense (personnel)', () => {
-    expect(categorizePcgAccount('641').type).toBe('operating_expense');
-    expect(categorizePcgAccount('645').type).toBe('operating_expense');
+  it('categorizes utilities and insurance as operating_expense', () => {
+    expect(categorizeByLabel('EDF ELECTRICITE PRELEVEMENT', -410).type).toBe('operating_expense');
+    expect(categorizeByLabel('MAIF ASSURANCE LOCAL PRELEVEMENT', -320).type).toBe('operating_expense');
   });
 
-  it('categorizes class 66x as financing_expense', () => {
-    expect(categorizePcgAccount('661').type).toBe('financing_expense');
+  it('categorizes loan repayments as financing_expense', () => {
+    expect(categorizeByLabel('REMBOURSEMENT EMPRUNT BPI FRANCE', -850).type).toBe('financing_expense');
+    expect(categorizeByLabel('INTERETS LIVRET PRO BNP', -85).type).toBe('financing_expense');
   });
 
-  it('categorizes class 76x as financing_income', () => {
-    expect(categorizePcgAccount('762').type).toBe('financing_income');
+  it('categorizes equipment purchases as investing_expense', () => {
+    expect(categorizeByLabel('ACHAT FOUR PROFESSIONNEL EQUIPEMENT', -12000).type).toBe('investing_expense');
+    expect(categorizeByLabel('TRAVAUX AMENAGEMENT LOCAL', -5000).type).toBe('investing_expense');
   });
 
-  it('categorizes class 20x-27x as investing_expense', () => {
-    expect(categorizePcgAccount('215').type).toBe('investing_expense');
-    expect(categorizePcgAccount('261').type).toBe('investing_expense');
+  it('categorizes tax payments as tax', () => {
+    expect(categorizeByLabel('DGFIP TVA A REVERSER NOV 2025', -1250).type).toBe('tax');
+    expect(categorizeByLabel('TRESOR PUBLIC IMPOT SOCIETES', -3000).type).toBe('tax');
+    expect(categorizeByLabel('CFE COTISATION FONCIERE', -500).type).toBe('tax');
   });
 
-  it('categorizes TVA (44x) as tax', () => {
-    expect(categorizePcgAccount('44571').type).toBe('tax');
-    expect(categorizePcgAccount('44566').type).toBe('tax');
+  it('falls back to operating_income for positive unknown amounts', () => {
+    expect(categorizeByLabel('VIREMENT INCONNU REF 12345', 500).type).toBe('operating_income');
   });
 
-  it('categorizes IS (695) as tax', () => {
-    expect(categorizePcgAccount('695').type).toBe('tax');
+  it('falls back to other for negative unknown amounts', () => {
+    expect(categorizeByLabel('PRELEVEMENT INCONNU REF 99999', -100).type).toBe('other');
   });
 
-  it('returns other for unknown accounts', () => {
-    expect(categorizePcgAccount('999').type).toBe('other');
-  });
-
-  it('returns labels in French', () => {
-    const result = categorizePcgAccount('701');
-    expect(result.label).toBe('Ventes de produits finis');
+  it('applies custom rules with priority over defaults', () => {
+    const customRules = [
+      { keywords: ['boulangerie'], type: 'operating_income' as const, label: 'Ventes boulangerie' },
+    ];
+    const result = categorizeByLabel('BOULANGERIE MARTIN PAIEMENT', 500, customRules);
+    expect(result.type).toBe('operating_income');
+    expect(result.ruleLabel).toBe('Ventes boulangerie');
   });
 });
 
