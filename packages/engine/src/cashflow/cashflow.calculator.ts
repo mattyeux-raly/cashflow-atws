@@ -10,31 +10,6 @@ import type {
   PeriodType, BfrResult, BurnRateResult,
 } from '@cashflow/shared';
 
-// REQUIREMENT: Categorize a PCG account number into a cashflow type
-export function categorizePcgAccount(accountNumber: string): Transaction['cashflowType'] {
-  const prefix = accountNumber.slice(0, 3);
-  const prefix2 = accountNumber.slice(0, 2);
-
-  // REQUIREMENT: PCG → cashflow_type mapping per French accounting standards
-  if (prefix.startsWith('70')) return 'operating_income';
-  if (prefix.startsWith('74')) return 'operating_income';
-  if (prefix2 === '60' || prefix2 === '61' || prefix2 === '62') return 'operating_expense';
-  if (prefix2 === '63' || prefix2 === '64') return 'operating_expense';
-  if (prefix2 === '65') return 'operating_expense';
-  if (prefix2 === '66') return 'financing_expense';
-  if (prefix2 === '67') return 'other';
-  if (prefix2 === '68') return 'other'; // Dotations — non-cash but tracked
-  if (prefix2 === '76') return 'financing_income';
-  if (prefix2 === '77') return 'other';
-  if (prefix2 >= '20' && prefix2 <= '27') return 'investing_expense';
-  if (prefix2 === '16') return 'financing_expense'; // Default to expense; income when receiving
-  if (accountNumber.startsWith('44')) return 'tax';
-  if (accountNumber.startsWith('695')) return 'tax';
-  if (prefix2 === '51') return 'other'; // Bank movements — determined by counterpart
-
-  return 'other';
-}
-
 function createEmptyBreakdown(): CashflowBreakdown {
   return { operating: 0, investing: 0, financing: 0, tax: 0, other: 0, total: 0 };
 }

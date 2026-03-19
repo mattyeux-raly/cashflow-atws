@@ -47,15 +47,13 @@ export class PennylaneRateLimitError extends Error {
 }
 
 // REQUIREMENT: Zod schemas for Pennylane API responses
-const PennylaneTransactionSchema = z.object({
+const PennylaneBankTransactionSchema = z.object({
   id: z.string(),
   date: z.string(),
   label: z.string().default('Sans libellé'),
   amount: z.number(),
   currency: z.string().default('EUR'),
-  account_number: z.string().default(''),
-  account_name: z.string().default(''),
-  bank_account_id: z.string().nullable().default(null),
+  bank_account_name: z.string().nullable().default(null),
   is_reconciled: z.boolean().default(false),
 }).passthrough();
 
@@ -207,11 +205,12 @@ export class PennylaneClient {
     return this.fetchAllPaginated<{ id: string; name: string; siren: string | null; currency: string }>('/companies');
   }
 
-  async getTransactions(companyId: string, since?: string) {
+  // REQUIREMENT: Utiliser les transactions bancaires, pas les écritures comptables
+  async getBankTransactions(companyId: string, since?: string) {
     const params: Record<string, string> = {};
     if (since) params['filter[date_from]'] = since;
-    const rawData = await this.fetchAllPaginated<unknown>(`/companies/${companyId}/transactions`, params);
-    return rawData.map((item) => PennylaneTransactionSchema.parse(item));
+    const rawData = await this.fetchAllPaginated<unknown>(`/companies/${companyId}/bank_transactions`, params);
+    return rawData.map((item) => PennylaneBankTransactionSchema.parse(item));
   }
 
   async getCustomerInvoices(companyId: string) {

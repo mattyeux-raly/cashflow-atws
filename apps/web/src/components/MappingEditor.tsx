@@ -1,23 +1,11 @@
 import { useState, useMemo } from 'react';
-import { Search, RotateCcw, Save, ChevronDown, ChevronRight } from 'lucide-react';
-import { PCG_MAPPINGS } from '@cashflow/engine';
-import type { PcgMapping } from '@cashflow/engine';
+import { Search, RotateCcw, Save, Plus, Trash2, Tag } from 'lucide-react';
+import { DEFAULT_LABEL_RULES, CASHFLOW_TYPE_LABELS } from '@cashflow/engine';
+import type { LabelRule } from '@cashflow/engine';
 import type { CashflowType } from '@cashflow/shared';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
-
-// REQUIREMENT: Labels en français pour chaque type de cashflow
-const CASHFLOW_TYPE_LABELS: Record<CashflowType, string> = {
-  operating_income: 'Exploitation — Revenus',
-  operating_expense: 'Exploitation — Charges',
-  investing_income: 'Investissement — Revenus',
-  investing_expense: 'Investissement — Dépenses',
-  financing_income: 'Financement — Revenus',
-  financing_expense: 'Financement — Charges',
-  tax: 'Fiscal',
-  other: 'Autre',
-};
 
 const CASHFLOW_TYPE_VARIANTS: Record<CashflowType, 'success' | 'danger' | 'info' | 'warning' | 'default'> = {
   operating_income: 'success',
@@ -34,124 +22,102 @@ const CASHFLOW_TYPE_OPTIONS: Array<{ value: CashflowType; label: string }> = Obj
   ([value, label]) => ({ value: value as CashflowType, label }),
 );
 
-// REQUIREMENT: Grouper les comptes par classe PCG
-const PCG_CLASSES: Record<string, string> = {
-  '1': 'Classe 1 — Capitaux',
-  '2': 'Classe 2 — Immobilisations',
-  '4': 'Classe 4 — Tiers',
-  '6': 'Classe 6 — Charges',
-  '7': 'Classe 7 — Produits',
-};
-
-interface MappingOverride {
-  prefix: string;
-  type: CashflowType;
-  label: string | null;
-}
+// Grouper les règles par type de cashflow
+const TYPE_GROUPS: Array<{ type: CashflowType; label: string }> = [
+  { type: 'operating_income', label: 'Exploitation — Revenus' },
+  { type: 'operating_expense', label: 'Exploitation — Charges' },
+  { type: 'investing_income', label: 'Investissement — Revenus' },
+  { type: 'investing_expense', label: 'Investissement — Dépenses' },
+  { type: 'financing_income', label: 'Financement — Revenus' },
+  { type: 'financing_expense', label: 'Financement — Charges' },
+  { type: 'tax', label: 'Fiscal' },
+  { type: 'other', label: 'Autre' },
+];
 
 interface MappingEditorProps {
-  overrides: MappingOverride[];
-  onSave: (overrides: MappingOverride[]) => void;
+  customRules: LabelRule[];
+  onSave: (rules: LabelRule[]) => void;
   isSaving?: boolean;
 }
 
-export function MappingEditor({ overrides, onSave, isSaving }: MappingEditorProps) {
+export function MappingEditor({ customRules, onSave, isSaving }: MappingEditorProps) {
   const [search, setSearch] = useState('');
-  const [localOverrides, setLocalOverrides] = useState<Map<string, MappingOverride>>(
-    () => new Map(overrides.map((o) => [o.prefix, o])),
-  );
-  const [expandedClasses, setExpandedClasses] = useState<Set<string>>(new Set(['6', '7']));
+  const [localRules, setLocalRules] = useState<LabelRule[]>(customRules);
   const [hasChanges, setHasChanges] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newKeywords, setNewKeywords] = useState('');
+  const [newType, setNewType] = useState<CashflowType>('operating_expense');
+  const [newLabel, setNewLabel] = useState('');
 
-  const groupedMappings = useMemo(() => {
-    const groups = new Map<string, PcgMapping[]>();
-    for (const mapping of PCG_MAPPINGS) {
-      const classKey = mapping.prefix[0]!;
-      if (!groups.has(classKey)) groups.set(classKey, []);
-      groups.get(classKey)!.push(mapping);
-    }
-    // Trier les préfixes dans chaque groupe
-    for (const [, mappings] of groups) {
-      mappings.sort((a, b) => a.prefix.localeCompare(b.prefix));
+  // Fusionner règles custom + par défaut pour l'affichage
+  const allRules = useMemo(() => {
+    const combined: Array<LabelRule & { isCustom: boolean }> = [
+      ...localRules.map((r) => ({ ...r, isCustom: true })),
+      ...DEFAULT_LABEL_RULES.map((r) => ({ ...r, isCustom: false })),
+    ];
+    if (!search.trim()) return combined;
+    const q = search.toLowerCase();
+    return combined.filter(
+      (r) =>
+        r.keywords.some((k) => k.toLowerCase().includes(q)) ||
+        r.label.toLowerCase().includes(q) ||
+        CASHFLOW_TYPE_LABELS[r.type].toLowerCase().includes(q),
+    );
+  }, [localRules, search]);
+
+  const groupedRules = useMemo(() => {
+    const groups = new Map<CashflowType, Array<LabelRule & { isCustom: boolean }>>();
+    for (const rule of allRules) {
+      if (!groups.has(rule.type)) groups.set(rule.type, []);
+      groups.get(rule.type)!.push(rule);
     }
     return groups;
-  }, []);
+  }, [allRules]);
 
-  const filteredMappings = useMemo(() => {
-    if (!search.trim()) return groupedMappings;
-    const q = search.toLowerCase();
-    const filtered = new Map<string, PcgMapping[]>();
-    for (const [classKey, mappings] of groupedMappings) {
-      const matches = mappings.filter(
-        (m) =>
-          m.prefix.includes(q) ||
-          m.label.toLowerCase().includes(q) ||
-          CASHFLOW_TYPE_LABELS[m.type].toLowerCase().includes(q),
-      );
-      if (matches.length > 0) filtered.set(classKey, matches);
-    }
-    return filtered;
-  }, [groupedMappings, search]);
+  const handleAddRule = () => {
+    if (!newKeywords.trim() || !newLabel.trim()) return;
+    const keywords = newKeywords.split(',').map((k) => k.trim().toLowerCase()).filter(Boolean);
+    if (keywords.length === 0) return;
 
-  const getEffectiveType = (mapping: PcgMapping): CashflowType => {
-    const override = localOverrides.get(mapping.prefix);
-    return override?.type ?? mapping.type;
-  };
-
-  const isOverridden = (prefix: string): boolean => localOverrides.has(prefix);
-
-  const handleTypeChange = (mapping: PcgMapping, newType: CashflowType) => {
-    const next = new Map(localOverrides);
-    if (newType === mapping.type) {
-      next.delete(mapping.prefix);
-    } else {
-      next.set(mapping.prefix, { prefix: mapping.prefix, type: newType, label: null });
-    }
-    setLocalOverrides(next);
+    const rule: LabelRule = { keywords, type: newType, label: newLabel.trim() };
+    setLocalRules([...localRules, rule]);
+    setNewKeywords('');
+    setNewLabel('');
+    setShowAddForm(false);
     setHasChanges(true);
   };
 
-  const handleReset = (prefix: string) => {
-    const next = new Map(localOverrides);
-    next.delete(prefix);
-    setLocalOverrides(next);
-    setHasChanges(true);
-  };
-
-  const handleResetAll = () => {
-    setLocalOverrides(new Map());
+  const handleDeleteCustomRule = (index: number) => {
+    const next = localRules.filter((_, i) => i !== index);
+    setLocalRules(next);
     setHasChanges(true);
   };
 
   const handleSave = () => {
-    onSave(Array.from(localOverrides.values()));
+    onSave(localRules);
     setHasChanges(false);
   };
 
-  const toggleClass = (classKey: string) => {
-    const next = new Set(expandedClasses);
-    if (next.has(classKey)) next.delete(classKey);
-    else next.add(classKey);
-    setExpandedClasses(next);
+  const handleResetAll = () => {
+    setLocalRules([]);
+    setHasChanges(true);
   };
-
-  const overrideCount = localOverrides.size;
 
   return (
     <Card>
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Mapping PCG → Cashflow
+            Règles de catégorisation
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Correspondance automatique des comptes du Plan Comptable Général vers les types de flux de trésorerie.
-            Modifiez les catégories si nécessaire.
+            Les transactions bancaires sont catégorisées automatiquement par mots-clés dans le libellé.
+            Ajoutez vos propres règles (elles sont prioritaires).
           </p>
         </div>
-        {overrideCount > 0 && (
-          <Badge variant="warning" size="md">
-            {overrideCount} modification{overrideCount > 1 ? 's' : ''}
+        {localRules.length > 0 && (
+          <Badge variant="info" size="md">
+            {localRules.length} règle{localRules.length > 1 ? 's' : ''} personnalisée{localRules.length > 1 ? 's' : ''}
           </Badge>
         )}
       </div>
@@ -162,15 +128,23 @@ export function MappingEditor({ overrides, onSave, isSaving }: MappingEditorProp
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Rechercher par n° de compte, libellé ou type..."
+            placeholder="Rechercher par mot-clé, libellé ou type..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent-500/30 focus:border-accent-500"
           />
         </div>
-        {overrideCount > 0 && (
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => setShowAddForm(!showAddForm)}
+          leftIcon={<Plus className="w-4 h-4" />}
+        >
+          Ajouter
+        </Button>
+        {localRules.length > 0 && (
           <Button variant="ghost" size="sm" onClick={handleResetAll} leftIcon={<RotateCcw className="w-4 h-4" />}>
-            Tout réinitialiser
+            Réinitialiser
           </Button>
         )}
         <Button
@@ -185,127 +159,129 @@ export function MappingEditor({ overrides, onSave, isSaving }: MappingEditorProp
         </Button>
       </div>
 
-      {/* Tableau de mapping groupé par classe */}
-      <div className="space-y-2">
-        {Array.from(filteredMappings.entries())
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([classKey, mappings]) => {
-            const isExpanded = expandedClasses.has(classKey) || search.trim().length > 0;
-            const classOverrides = mappings.filter((m) => isOverridden(m.prefix)).length;
-
-            return (
-              <div key={classKey} className="border border-gray-200 dark:border-slate-600 rounded-lg overflow-hidden">
-                <button
-                  onClick={() => toggleClass(classKey)}
-                  className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-slate-700/50 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-left"
+      {/* Formulaire d'ajout */}
+      {showAddForm && (
+        <div className="mb-4 p-4 border border-accent-200 dark:border-accent-800 rounded-lg bg-accent-50/30 dark:bg-accent-900/10">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Nouvelle règle</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                Mots-clés (séparés par des virgules)
+              </label>
+              <input
+                type="text"
+                value={newKeywords}
+                onChange={(e) => setNewKeywords(e.target.value)}
+                placeholder="loyer, bail, fermage"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent-500/30"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                Nom de la règle
+              </label>
+              <input
+                type="text"
+                value={newLabel}
+                onChange={(e) => setNewLabel(e.target.value)}
+                placeholder="Loyer bureau"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent-500/30"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                Type de flux
+              </label>
+              <div className="flex gap-2">
+                <select
+                  value={newType}
+                  onChange={(e) => setNewType(e.target.value as CashflowType)}
+                  className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent-500/30"
                 >
-                  <div className="flex items-center gap-2">
-                    {isExpanded
-                      ? <ChevronDown className="w-4 h-4 text-gray-500" />
-                      : <ChevronRight className="w-4 h-4 text-gray-500" />}
-                    <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                      {PCG_CLASSES[classKey] ?? `Classe ${classKey}`}
-                    </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      ({mappings.length} compte{mappings.length > 1 ? 's' : ''})
-                    </span>
-                  </div>
-                  {classOverrides > 0 && (
-                    <Badge variant="warning" size="sm">
-                      {classOverrides} modifié{classOverrides > 1 ? 's' : ''}
-                    </Badge>
-                  )}
-                </button>
+                  {CASHFLOW_TYPE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+                <Button variant="primary" size="sm" onClick={handleAddRule}>
+                  OK
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-                {isExpanded && (
-                  <div className="divide-y divide-gray-100 dark:divide-slate-700">
-                    {/* En-tête */}
-                    <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-gray-50/50 dark:bg-slate-800/30 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      <div className="col-span-2">Compte</div>
-                      <div className="col-span-4">Libellé</div>
-                      <div className="col-span-4">Type de flux</div>
-                      <div className="col-span-2 text-right">Actions</div>
+      {/* Liste des règles groupées par type */}
+      <div className="space-y-3">
+        {TYPE_GROUPS.filter((g) => groupedRules.has(g.type)).map(({ type, label: groupLabel }) => {
+          const rules = groupedRules.get(type)!;
+          return (
+            <div key={type} className="border border-gray-200 dark:border-slate-600 rounded-lg overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-slate-700/50">
+                <div className="flex items-center gap-2">
+                  <Badge variant={CASHFLOW_TYPE_VARIANTS[type]} size="sm">{groupLabel}</Badge>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {rules.length} règle{rules.length > 1 ? 's' : ''}
+                  </span>
+                </div>
+              </div>
+
+              <div className="divide-y divide-gray-100 dark:divide-slate-700">
+                {rules.map((rule, idx) => (
+                  <div
+                    key={`${rule.label}-${idx}`}
+                    className={`flex items-center justify-between px-4 py-2.5 ${
+                      rule.isCustom
+                        ? 'bg-accent-50/30 dark:bg-accent-900/10'
+                        : 'hover:bg-gray-50 dark:hover:bg-slate-700/30'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <Tag className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          {rule.label}
+                        </span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {rule.keywords.map((kw) => (
+                            <code
+                              key={kw}
+                              className="inline-block px-1.5 py-0.5 text-xs font-mono rounded bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-400"
+                            >
+                              {kw}
+                            </code>
+                          ))}
+                        </div>
+                      </div>
                     </div>
 
-                    {mappings.map((mapping) => {
-                      const effectiveType = getEffectiveType(mapping);
-                      const modified = isOverridden(mapping.prefix);
-
-                      return (
-                        <div
-                          key={mapping.prefix}
-                          className={`grid grid-cols-12 gap-2 items-center px-4 py-2.5 transition-colors ${
-                            modified
-                              ? 'bg-amber-50/50 dark:bg-amber-900/10'
-                              : 'hover:bg-gray-50 dark:hover:bg-slate-700/30'
-                          }`}
-                        >
-                          {/* N° de compte */}
-                          <div className="col-span-2">
-                            <code className="text-sm font-mono font-semibold text-gray-900 dark:text-gray-100">
-                              {mapping.prefix}*
-                            </code>
-                          </div>
-
-                          {/* Libellé */}
-                          <div className="col-span-4">
-                            <span className="text-sm text-gray-700 dark:text-gray-300">{mapping.label}</span>
-                          </div>
-
-                          {/* Sélecteur de type */}
-                          <div className="col-span-4">
-                            <div className="flex items-center gap-2">
-                              {modified && (
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" title="Modifié" />
-                              )}
-                              <select
-                                value={effectiveType}
-                                onChange={(e) => handleTypeChange(mapping, e.target.value as CashflowType)}
-                                className={`block w-full text-sm rounded-md border px-2 py-1.5 transition-colors
-                                  ${modified
-                                    ? 'border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20'
-                                    : 'border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700'}
-                                  text-gray-900 dark:text-gray-100
-                                  focus:outline-none focus:ring-2 focus:ring-accent-500/30 focus:border-accent-500`}
-                              >
-                                {CASHFLOW_TYPE_OPTIONS.map((opt) => (
-                                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                ))}
-                              </select>
-                            </div>
-                          </div>
-
-                          {/* Actions */}
-                          <div className="col-span-2 text-right">
-                            {modified && (
-                              <button
-                                onClick={() => handleReset(mapping.prefix)}
-                                className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-                                title="Réinitialiser"
-                              >
-                                <RotateCcw className="w-3 h-3" />
-                                Annuler
-                              </button>
-                            )}
-                            {!modified && (
-                              <Badge variant={CASHFLOW_TYPE_VARIANTS[effectiveType]} size="sm">
-                                Auto
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                    <div className="flex items-center gap-2 ml-4">
+                      {rule.isCustom ? (
+                        <>
+                          <Badge variant="info" size="sm">Personnalisée</Badge>
+                          <button
+                            onClick={() => handleDeleteCustomRule(localRules.indexOf(rule))}
+                            className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                            title="Supprimer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      ) : (
+                        <Badge variant="default" size="sm">Par défaut</Badge>
+                      )}
+                    </div>
                   </div>
-                )}
+                ))}
               </div>
-            );
-          })}
+            </div>
+          );
+        })}
       </div>
 
-      {filteredMappings.size === 0 && (
+      {allRules.length === 0 && (
         <p className="text-center text-sm text-gray-500 dark:text-gray-400 py-8">
-          Aucun compte trouvé pour « {search} »
+          Aucune règle trouvée pour « {search} »
         </p>
       )}
     </Card>

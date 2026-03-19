@@ -12,7 +12,7 @@ export function Settings() {
   const { user, firm } = useAuthStore();
   const { syncPennylane, isLoading } = useCashflowStore();
   const [pennylaneConnected, setPennylaneConnected] = useState(false);
-  const { overrides, saveOverrides, isSaving } = useMappingOverrides();
+  const { customRules, saveRules, isSaving } = useMappingOverrides();
 
   const handleConnectPennylane = () => {
     // REQUIREMENT: OAuth2 flow — redirect to Pennylane authorization
@@ -97,8 +97,8 @@ export function Settings() {
         </div>
       </Card>
 
-      {/* PCG Mapping Editor */}
-      <MappingEditor overrides={overrides} onSave={saveOverrides} isSaving={isSaving} />
+      {/* Règles de catégorisation */}
+      <MappingEditor customRules={customRules} onSave={saveRules} isSaving={isSaving} />
 
       {/* Firm Info */}
       <Card>

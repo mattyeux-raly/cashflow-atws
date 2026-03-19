@@ -1,5 +1,6 @@
-// REQUIREMENT: Demo mode — realistic French mock data for previewing the app without Supabase
+// REQUIREMENT: Demo mode — realistic French bank transaction data
 import type { User, Firm, Company, Transaction } from '@cashflow/shared';
+import { categorizeByLabel } from '@cashflow/engine';
 
 export const DEMO_FIRM: Firm = {
   id: 'a0000000-0000-0000-0000-000000000001',
@@ -56,15 +57,9 @@ export const DEMO_COMPANIES: Company[] = [
 ];
 
 let txId = 0;
-function tx(
-  date: string,
-  label: string,
-  amount: number,
-  cashflowType: Transaction['cashflowType'],
-  category: string,
-  subcategory: string,
-): Transaction {
+function tx(date: string, label: string, amount: number): Transaction {
   txId++;
+  const { type } = categorizeByLabel(label, amount);
   return {
     id: `tx-${String(txId).padStart(4, '0')}`,
     companyId: DEMO_COMPANIES[0]!.id,
@@ -73,9 +68,9 @@ function tx(
     label,
     amount,
     currency: 'EUR',
-    category,
-    subcategory,
-    cashflowType,
+    category: null,
+    subcategory: null,
+    cashflowType: type,
     bankAccount: 'FR76 3000 1007 1600 0000 0000 123',
     isReconciled: true,
     pennylaneMetadata: {},
@@ -87,74 +82,74 @@ function tx(
 
 export const DEMO_TRANSACTIONS: Transaction[] = [
   // === Octobre 2025 ===
-  tx('2025-10-03', 'Ventes comptoir semaine 1', 4100, 'operating_income', '701', 'Ventes de produits finis'),
-  tx('2025-10-07', 'Achat farine Meunerie du Moulin', -1350, 'operating_expense', '601', 'Achats matières premières'),
-  tx('2025-10-10', 'Ventes comptoir semaine 2', 3850, 'operating_income', '701', 'Ventes de produits finis'),
-  tx('2025-10-15', 'Loyer local commercial', -1800, 'operating_expense', '613', 'Locations'),
-  tx('2025-10-15', 'Salaires octobre', -5200, 'operating_expense', '641', 'Rémunérations du personnel'),
-  tx('2025-10-20', 'Charges sociales octobre', -2340, 'operating_expense', '645', 'Charges de sécurité sociale'),
-  tx('2025-10-22', 'Ventes comptoir semaine 3', 4300, 'operating_income', '701', 'Ventes de produits finis'),
-  tx('2025-10-28', 'EDF Électricité', -410, 'operating_expense', '606', 'Achats non stockés'),
-  tx('2025-10-31', 'Ventes comptoir semaine 4', 3900, 'operating_income', '701', 'Ventes de produits finis'),
-  tx('2025-10-31', 'Remboursement emprunt BPI', -850, 'financing_expense', '164', 'Emprunts établissements de crédit'),
+  tx('2025-10-03', 'VIR RECU CLIENT HOTEL BELLEVUE', 4100),
+  tx('2025-10-07', 'ACHAT FARINE MEUNERIE DU MOULIN', -1350),
+  tx('2025-10-10', 'ENCAISSEMENT CB VENTES COMPTOIR', 3850),
+  tx('2025-10-15', 'LOYER LOCAL COMMERCIAL OCT 2025', -1800),
+  tx('2025-10-15', 'VIREMENT PAIE SALAIRES OCTOBRE', -5200),
+  tx('2025-10-20', 'URSSAF COTISATIONS T3 2025', -2340),
+  tx('2025-10-22', 'VIR RECU MAIRIE BUFFET RECEPTION', 4300),
+  tx('2025-10-28', 'EDF ELECTRICITE PRELEVEMENT', -410),
+  tx('2025-10-31', 'ENCAISSEMENT CB VENTES COMPTOIR', 3900),
+  tx('2025-10-31', 'REMBOURSEMENT EMPRUNT BPI FRANCE', -850),
 
   // === Novembre 2025 ===
-  tx('2025-11-05', 'Ventes comptoir semaine 1', 3700, 'operating_income', '701', 'Ventes de produits finis'),
-  tx('2025-11-08', 'Achat beurre AOP Charentes', -980, 'operating_expense', '601', 'Achats matières premières'),
-  tx('2025-11-12', 'Ventes comptoir semaine 2', 4200, 'operating_income', '701', 'Ventes de produits finis'),
-  tx('2025-11-15', 'Loyer local commercial', -1800, 'operating_expense', '613', 'Locations'),
-  tx('2025-11-15', 'Salaires novembre', -5200, 'operating_expense', '641', 'Rémunérations du personnel'),
-  tx('2025-11-20', 'Charges sociales novembre', -2340, 'operating_expense', '645', 'Charges de sécurité sociale'),
-  tx('2025-11-22', 'Ventes comptoir semaine 3', 4500, 'operating_income', '701', 'Ventes de produits finis'),
-  tx('2025-11-25', 'Assurance local', -320, 'operating_expense', '616', 'Primes d\'assurance'),
-  tx('2025-11-28', 'Ventes comptoir semaine 4', 3950, 'operating_income', '701', 'Ventes de produits finis'),
-  tx('2025-11-30', 'Remboursement emprunt BPI', -850, 'financing_expense', '164', 'Emprunts établissements de crédit'),
-  tx('2025-11-30', 'TVA à reverser', -1250, 'tax', '44571', 'TVA collectée'),
+  tx('2025-11-05', 'ENCAISSEMENT CB VENTES COMPTOIR', 3700),
+  tx('2025-11-08', 'ACHAT BEURRE AOP CHARENTES FOURNISSEUR', -980),
+  tx('2025-11-12', 'VIR RECU TRAITEUR MARIAGE LEROY', 4200),
+  tx('2025-11-15', 'LOYER LOCAL COMMERCIAL NOV 2025', -1800),
+  tx('2025-11-15', 'VIREMENT PAIE SALAIRES NOVEMBRE', -5200),
+  tx('2025-11-20', 'URSSAF COTISATIONS OCT 2025', -2340),
+  tx('2025-11-22', 'VIR RECU CLIENT RESTAURANT LE GOURMET', 4500),
+  tx('2025-11-25', 'MAIF ASSURANCE LOCAL PRELEVEMENT', -320),
+  tx('2025-11-28', 'ENCAISSEMENT CB VENTES COMPTOIR', 3950),
+  tx('2025-11-30', 'REMBOURSEMENT EMPRUNT BPI FRANCE', -850),
+  tx('2025-11-30', 'DGFIP TVA A REVERSER NOV 2025', -1250),
 
   // === Décembre 2025 (saison haute Noël) ===
-  tx('2025-12-03', 'Ventes comptoir + commandes Noël S1', 6200, 'operating_income', '701', 'Ventes de produits finis'),
-  tx('2025-12-05', 'Achat ingrédients spéciaux Noël', -2100, 'operating_expense', '601', 'Achats matières premières'),
-  tx('2025-12-10', 'Ventes comptoir + bûches S2', 7500, 'operating_income', '701', 'Ventes de produits finis'),
-  tx('2025-12-15', 'Loyer local commercial', -1800, 'operating_expense', '613', 'Locations'),
-  tx('2025-12-15', 'Salaires décembre', -5200, 'operating_expense', '641', 'Rémunérations du personnel'),
-  tx('2025-12-15', 'Prime de Noël employés', -1500, 'operating_expense', '641', 'Rémunérations du personnel'),
-  tx('2025-12-18', 'Ventes galettes des rois (pré-commandes)', 3200, 'operating_income', '701', 'Ventes de produits finis'),
-  tx('2025-12-20', 'Charges sociales décembre', -2340, 'operating_expense', '645', 'Charges de sécurité sociale'),
-  tx('2025-12-24', 'Ventes réveillon S4', 8900, 'operating_income', '701', 'Ventes de produits finis'),
-  tx('2025-12-31', 'Remboursement emprunt BPI', -850, 'financing_expense', '164', 'Emprunts établissements de crédit'),
+  tx('2025-12-03', 'ENCAISSEMENT CB VENTES COMPTOIR NOEL', 6200),
+  tx('2025-12-05', 'ACHAT INGREDIENTS SPECIAUX NOEL', -2100),
+  tx('2025-12-10', 'VIR RECU COMMANDES BUCHES NOEL', 7500),
+  tx('2025-12-15', 'LOYER LOCAL COMMERCIAL DEC 2025', -1800),
+  tx('2025-12-15', 'VIREMENT PAIE SALAIRES DECEMBRE', -5200),
+  tx('2025-12-15', 'PRIME NOEL EMPLOYES VIREMENT', -1500),
+  tx('2025-12-18', 'ENCAISSEMENT CB PRE-COMMANDES GALETTES', 3200),
+  tx('2025-12-20', 'URSSAF COTISATIONS NOV 2025', -2340),
+  tx('2025-12-24', 'ENCAISSEMENT CB VENTES REVEILLON', 8900),
+  tx('2025-12-31', 'REMBOURSEMENT EMPRUNT BPI FRANCE', -850),
 
   // === Janvier 2026 ===
-  tx('2026-01-05', 'Ventes galettes des rois S1', 5800, 'operating_income', '701', 'Ventes de produits finis'),
-  tx('2026-01-07', 'Achat farine Bio Meunerie', -1200, 'operating_expense', '601', 'Achats matières premières'),
-  tx('2026-01-10', 'Ventes comptoir semaine 2', 3980, 'operating_income', '701', 'Ventes de produits finis'),
-  tx('2026-01-15', 'Loyer local commercial', -1800, 'operating_expense', '613', 'Locations'),
-  tx('2026-01-15', 'Salaires janvier', -5200, 'operating_expense', '641', 'Rémunérations du personnel'),
-  tx('2026-01-20', 'Charges sociales janvier', -2340, 'operating_expense', '645', 'Charges de sécurité sociale'),
-  tx('2026-01-25', 'Ventes comptoir S3-4', 8100, 'operating_income', '701', 'Ventes de produits finis'),
-  tx('2026-01-28', 'EDF Électricité', -380, 'operating_expense', '606', 'Achats non stockés'),
-  tx('2026-01-31', 'TVA à reverser', -1250, 'tax', '44571', 'TVA collectée'),
-  tx('2026-01-31', 'Remboursement emprunt BPI', -850, 'financing_expense', '164', 'Emprunts établissements de crédit'),
+  tx('2026-01-05', 'ENCAISSEMENT CB GALETTES DES ROIS', 5800),
+  tx('2026-01-07', 'ACHAT FARINE BIO MEUNERIE LOCALE', -1200),
+  tx('2026-01-10', 'VIR RECU CLIENT COMITE ENTREPRISE', 3980),
+  tx('2026-01-15', 'LOYER LOCAL COMMERCIAL JAN 2026', -1800),
+  tx('2026-01-15', 'VIREMENT PAIE SALAIRES JANVIER', -5200),
+  tx('2026-01-20', 'URSSAF COTISATIONS DEC 2025', -2340),
+  tx('2026-01-25', 'ENCAISSEMENT CB VENTES COMPTOIR', 8100),
+  tx('2026-01-28', 'EDF ELECTRICITE PRELEVEMENT', -380),
+  tx('2026-01-31', 'DGFIP TVA A REVERSER JAN 2026', -1250),
+  tx('2026-01-31', 'REMBOURSEMENT EMPRUNT BPI FRANCE', -850),
 
   // === Février 2026 ===
-  tx('2026-02-05', 'Ventes comptoir S1', 4100, 'operating_income', '701', 'Ventes de produits finis'),
-  tx('2026-02-10', 'Achat four professionnel', -12000, 'investing_expense', '215', 'Installations techniques'),
-  tx('2026-02-10', 'Subvention région équipement', 3000, 'operating_income', '74', 'Subventions exploitation'),
-  tx('2026-02-12', 'Ventes comptoir S2', 3800, 'operating_income', '701', 'Ventes de produits finis'),
-  tx('2026-02-15', 'Loyer local commercial', -1800, 'operating_expense', '613', 'Locations'),
-  tx('2026-02-15', 'Salaires février', -5200, 'operating_expense', '641', 'Rémunérations du personnel'),
-  tx('2026-02-20', 'Charges sociales février', -2340, 'operating_expense', '645', 'Charges de sécurité sociale'),
-  tx('2026-02-22', 'Ventes comptoir S3', 4200, 'operating_income', '701', 'Ventes de produits finis'),
-  tx('2026-02-25', 'Ventes comptoir S4', 3600, 'operating_income', '701', 'Ventes de produits finis'),
-  tx('2026-02-28', 'Remboursement emprunt BPI', -850, 'financing_expense', '164', 'Emprunts établissements de crédit'),
+  tx('2026-02-05', 'ENCAISSEMENT CB VENTES COMPTOIR', 4100),
+  tx('2026-02-10', 'ACHAT FOUR PROFESSIONNEL EQUIPEMENT', -12000),
+  tx('2026-02-10', 'VIR RECU SUBVENTION REGION EQUIPEMENT', 3000),
+  tx('2026-02-12', 'VIR RECU CLIENT EPICERIE FINE MARTIN', 3800),
+  tx('2026-02-15', 'LOYER LOCAL COMMERCIAL FEV 2026', -1800),
+  tx('2026-02-15', 'VIREMENT PAIE SALAIRES FEVRIER', -5200),
+  tx('2026-02-20', 'URSSAF COTISATIONS JAN 2026', -2340),
+  tx('2026-02-22', 'ENCAISSEMENT CB VENTES COMPTOIR', 4200),
+  tx('2026-02-25', 'ENCAISSEMENT CB VENTES COMPTOIR', 3600),
+  tx('2026-02-28', 'REMBOURSEMENT EMPRUNT BPI FRANCE', -850),
 
   // === Mars 2026 (partiel) ===
-  tx('2026-03-05', 'Ventes comptoir S1', 4500, 'operating_income', '701', 'Ventes de produits finis'),
-  tx('2026-03-08', 'Achat emballages éco', -600, 'operating_expense', '602', 'Autres approvisionnements'),
-  tx('2026-03-10', 'Ventes comptoir S2', 4100, 'operating_income', '701', 'Ventes de produits finis'),
-  tx('2026-03-12', 'Intérêts livret pro', 85, 'financing_income', '764', 'Produits financiers'),
-  tx('2026-03-15', 'Loyer local commercial', -1800, 'operating_expense', '613', 'Locations'),
-  tx('2026-03-15', 'Salaires mars', -5200, 'operating_expense', '641', 'Rémunérations du personnel'),
-  tx('2026-03-18', 'Ventes comptoir S3', 4300, 'operating_income', '701', 'Ventes de produits finis'),
+  tx('2026-03-05', 'ENCAISSEMENT CB VENTES COMPTOIR', 4500),
+  tx('2026-03-08', 'ACHAT EMBALLAGES ECO FOURNISSEUR', -600),
+  tx('2026-03-10', 'VIR RECU CLIENT RESTAURANT JEAN', 4100),
+  tx('2026-03-12', 'INTERETS LIVRET PRO BNP PARIBAS', 85),
+  tx('2026-03-15', 'LOYER LOCAL COMMERCIAL MAR 2026', -1800),
+  tx('2026-03-15', 'VIREMENT PAIE SALAIRES MARS', -5200),
+  tx('2026-03-18', 'ENCAISSEMENT CB VENTES COMPTOIR', 4300),
 ];
 
 // REQUIREMENT: Opening balance for the demo (before Oct 2025)
