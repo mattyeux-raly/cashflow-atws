@@ -169,11 +169,11 @@ export const useCashflowStore = create<CashflowState>((set, get) => ({
       if (selectedCompanyId) {
         await get().fetchTransactions(selectedCompanyId);
       }
+      set({ isLoading: false });
     } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : 'Erreur de synchronisation',
-        isLoading: false,
-      });
+      const message = err instanceof Error ? err.message : 'Erreur de synchronisation';
+      set({ error: message, isLoading: false });
+      throw err;
     }
   },
 }));

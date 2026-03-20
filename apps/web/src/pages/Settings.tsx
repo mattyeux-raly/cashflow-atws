@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { RefreshCw, Users, Check, Key } from 'lucide-react';
+import { RefreshCw, Users, Check, Key, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -10,8 +10,19 @@ import { useMappingOverrides } from '../hooks/useMappingOverrides';
 
 export function Settings() {
   const { user, firm } = useAuthStore();
-  const { syncPennylane, isLoading } = useCashflowStore();
+  const { syncPennylane, isLoading, error } = useCashflowStore();
   const { customRules, saveRules, isSaving } = useMappingOverrides();
+  const [syncResult, setSyncResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleSync = async () => {
+    setSyncResult(null);
+    try {
+      await syncPennylane();
+      setSyncResult({ success: true, message: 'Synchronisation terminée avec succès' });
+    } catch {
+      setSyncResult({ success: false, message: error ?? 'Erreur lors de la synchronisation' });
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -27,20 +38,40 @@ export function Settings() {
           Configurez votre token dans Pennylane {'>'} Paramètres {'>'} Connectivité {'>'} Développeurs
           avec le scope <code className="px-1.5 py-0.5 bg-gray-100 dark:bg-slate-700 rounded text-xs font-mono">transactions:readonly</code>.
         </p>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-            <Key className="w-4 h-4" />
-            <span className="text-sm font-medium">Clé API configurée côté serveur</span>
+        <div className="space-y-3">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+              <Key className="w-4 h-4" />
+              <span className="text-sm font-medium">Clé API configurée côté serveur</span>
+            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              leftIcon={<RefreshCw className="w-4 h-4" />}
+              onClick={handleSync}
+              isLoading={isLoading}
+            >
+              Synchroniser maintenant
+            </Button>
           </div>
-          <Button
-            variant="primary"
-            size="sm"
-            leftIcon={<RefreshCw className="w-4 h-4" />}
-            onClick={() => syncPennylane()}
-            isLoading={isLoading}
-          >
-            Synchroniser maintenant
-          </Button>
+          {syncResult && (
+            <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
+              syncResult.success
+                ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'
+                : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300'
+            }`}>
+              {syncResult.success
+                ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                : <AlertCircle className="w-4 h-4 flex-shrink-0" />}
+              {syncResult.message}
+            </div>
+          )}
+          {error && !syncResult && (
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {error}
+            </div>
+          )}
         </div>
       </Card>
 
