@@ -92,17 +92,20 @@ interface PaginatedResponse {
   }>;
 }
 
-async function fetchAllTransactions(apiKey: string, _since?: string): Promise<PennylaneTransaction[]> {
+async function fetchAllTransactions(apiKey: string, since?: string): Promise<PennylaneTransaction[]> {
   const all: PennylaneTransaction[] = [];
   let cursor: string | undefined;
   let hasMore = true;
 
-  while (hasMore) {
-    // REQUIREMENT: Fetch sans filtre pour l'instant — on récupère tout
-    const params = new URLSearchParams({ limit: '100' });
-    if (cursor) params.set('cursor', cursor);
+  // REQUIREMENT: Filtre date pour limiter le volume — format Pennylane v2
+  const dateFilter = since ?? '2025-01-01';
 
-    const response = await pennylaneRequest(apiKey, `/transactions?${params}`) as PaginatedResponse;
+  while (hasMore) {
+    // REQUIREMENT: limit=10 pour test initial, pas de filtre pour valider l'appel de base
+    let url = `/transactions?limit=10`;
+    if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
+
+    const response = await pennylaneRequest(apiKey, url) as PaginatedResponse;
 
     for (const item of response.items) {
       all.push({
@@ -116,7 +119,8 @@ async function fetchAllTransactions(apiKey: string, _since?: string): Promise<Pe
       });
     }
 
-    hasMore = response.has_more === true;
+    // REQUIREMENT: Une seule page pour le test initial
+    hasMore = false;
     cursor = response.next_cursor ?? undefined;
   }
 
