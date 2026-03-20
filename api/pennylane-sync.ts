@@ -31,7 +31,7 @@ async function pennylaneRequest(apiKey: string, path: string, retryCount = 0): P
   const response = await fetch(`${PENNYLANE_BASE_URL}${path}`, {
     headers: {
       Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
+      Accept: 'application/json',
     },
   });
 
@@ -58,7 +58,9 @@ async function pennylaneRequest(apiKey: string, path: string, retryCount = 0): P
   }
 
   if (!response.ok) {
-    throw { message: `Erreur API Pennylane: ${response.status}`, status: 502 };
+    // REQUIREMENT: Loguer le body pour debugger les erreurs Pennylane
+    const errorBody = await response.text().catch(() => 'no body');
+    throw { message: `Erreur API Pennylane ${response.status}: ${errorBody}`, status: 502 };
   }
 
   return response.json();
@@ -98,7 +100,7 @@ async function fetchAllTransactions(apiKey: string, since?: string): Promise<Pen
   while (hasMore) {
     const params = new URLSearchParams({ limit: '100' });
     if (cursor) params.set('cursor', cursor);
-    if (since) params.set('filter', `date:gteq:${since}`);
+    if (since) params.set('filter[date]', `gteq:${since}`);
 
     const response = await pennylaneRequest(apiKey, `/transactions?${params}`) as PaginatedResponse;
 
