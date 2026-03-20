@@ -92,15 +92,15 @@ interface PaginatedResponse {
   }>;
 }
 
-async function fetchAllTransactions(apiKey: string, since?: string): Promise<PennylaneTransaction[]> {
+async function fetchAllTransactions(apiKey: string, _since?: string): Promise<PennylaneTransaction[]> {
   const all: PennylaneTransaction[] = [];
   let cursor: string | undefined;
   let hasMore = true;
 
   while (hasMore) {
+    // REQUIREMENT: Fetch sans filtre pour l'instant — on récupère tout
     const params = new URLSearchParams({ limit: '100' });
     if (cursor) params.set('cursor', cursor);
-    if (since) params.set('filter[date]', `gteq:${since}`);
 
     const response = await pennylaneRequest(apiKey, `/transactions?${params}`) as PaginatedResponse;
 
@@ -212,14 +212,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(403).json({ error: 'Rôle insuffisant pour la synchronisation' });
     }
 
-    // Rate limit
-    const rateCheck = checkRateLimit(userId);
-    if (!rateCheck.allowed) {
-      return res.status(429).json({
-        error: 'Synchronisation en cours. Réessayez dans 5 minutes.',
-        retryAfterMs: rateCheck.retryAfterMs,
-      });
-    }
+    // Rate limit — désactivé temporairement pour debug
+    // const rateCheck = checkRateLimit(userId);
+    // if (!rateCheck.allowed) {
+    //   return res.status(429).json({
+    //     error: 'Synchronisation en cours. Réessayez dans 5 minutes.',
+    //     retryAfterMs: rateCheck.retryAfterMs,
+    //   });
+    // }
 
     // SECURITY: Clé API Pennylane côté serveur uniquement
     const apiKey = process.env.PENNYLANE_API_KEY;
