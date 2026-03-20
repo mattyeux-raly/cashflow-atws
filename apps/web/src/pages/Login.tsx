@@ -256,33 +256,29 @@ export function Login() {
                   )}
                 </button>
 
-                {/* Demo mode */}
-                {!isSupabaseConfigured && (
-                  <>
-                    <div className="relative">
-                      <div className="absolute inset-0 flex items-center">
-                        <div className="w-full border-t border-surface-200 dark:border-surface-dark-200" />
-                      </div>
-                      <div className="relative flex justify-center">
-                        <span className="px-3 text-label uppercase text-primary-400 dark:text-primary-500 bg-white dark:bg-surface-dark-50">
-                          ou
-                        </span>
-                      </div>
-                    </div>
+                {/* Demo mode — always visible */}
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-surface-200 dark:border-surface-dark-200" />
+                  </div>
+                  <div className="relative flex justify-center">
+                    <span className="px-3 text-label uppercase text-primary-400 dark:text-primary-500 bg-white dark:bg-surface-dark-50">
+                      ou
+                    </span>
+                  </div>
+                </div>
 
-                    <button
-                      type="button"
-                      onClick={loginDemo}
-                      className="w-full flex items-center justify-center gap-2.5 py-3.5 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white rounded-xl font-display font-semibold text-body-md shadow-glow-emerald hover:shadow-lg transition-all duration-200"
-                    >
-                      <Play className="w-4 h-4" />
-                      Accéder à la démo
-                    </button>
-                    <p className="text-center text-label text-primary-400 dark:text-primary-500 uppercase">
-                      Données fictives — Boulangerie Martin SARL
-                    </p>
-                  </>
-                )}
+                <button
+                  type="button"
+                  onClick={loginDemo}
+                  className="w-full flex items-center justify-center gap-2.5 py-3.5 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white rounded-xl font-display font-semibold text-body-md shadow-glow-emerald hover:shadow-lg transition-all duration-200"
+                >
+                  <Play className="w-4 h-4" />
+                  Accéder à la démo
+                </button>
+                <p className="text-center text-label text-primary-400 dark:text-primary-500 uppercase">
+                  Données fictives — Boulangerie Martin SARL
+                </p>
               </form>
             )}
           </div>
