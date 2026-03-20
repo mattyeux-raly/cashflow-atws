@@ -145,6 +145,9 @@ function categorizeByLabel(label: string, amount: number): string {
   if (n.includes('interet') || n.includes('interets')) return 'financing_expense';
   if (n.includes('dividende')) return 'financing_expense';
 
+  // Exploitation — Publicité / Marketing
+  if (n.includes('publicite') || n.includes('marketing') || n.includes('google ads') || n.includes('facebook') || n.includes('meta') || n.includes('communication') || n.includes('pub ') || n.includes('ads')) return 'operating_expense';
+
   // Exploitation — Charges
   if (n.includes('loyer') || n.includes('bail')) return 'operating_expense';
   if (n.includes('salaire') || n.includes('paie') || n.includes('virement paie')) return 'operating_expense';
