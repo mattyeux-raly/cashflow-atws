@@ -74,36 +74,48 @@ interface PennylaneTransaction {
   is_reconciled: boolean;
 }
 
+// REQUIREMENT: API v2 utilise cursor-based pagination
 interface PaginatedResponse {
-  data: PennylaneTransaction[];
-  pagination: { page: number; pages: number; per_page: number; total: number };
+  has_more: boolean;
+  next_cursor: string | null;
+  items: Array<{
+    id: number;
+    label: string | null;
+    date: string;
+    amount: string;
+    currency: string | null;
+    currency_amount: string;
+    bank_account: { name: string } | null;
+    attachment_required: boolean;
+  }>;
 }
 
 async function fetchAllTransactions(apiKey: string, since?: string): Promise<PennylaneTransaction[]> {
   const all: PennylaneTransaction[] = [];
-  let page = 1;
+  let cursor: string | undefined;
   let hasMore = true;
 
   while (hasMore) {
-    const params = new URLSearchParams({ page: String(page), per_page: '100' });
-    if (since) params.set('filter[date_from]', since);
+    const params = new URLSearchParams({ limit: '100' });
+    if (cursor) params.set('cursor', cursor);
+    if (since) params.set('filter', `date:gteq:${since}`);
 
     const response = await pennylaneRequest(apiKey, `/transactions?${params}`) as PaginatedResponse;
 
-    for (const item of response.data) {
+    for (const item of response.items) {
       all.push({
         id: String(item.id ?? ''),
         date: item.date ?? '',
         label: item.label ?? 'Sans libellé',
         amount: Number(item.amount ?? 0),
         currency: item.currency ?? 'EUR',
-        bank_account_name: item.bank_account_name ?? null,
-        is_reconciled: item.is_reconciled ?? false,
+        bank_account_name: item.bank_account?.name ?? null,
+        is_reconciled: item.attachment_required ?? false,
       });
     }
 
-    hasMore = page < response.pagination.pages;
-    page++;
+    hasMore = response.has_more === true;
+    cursor = response.next_cursor ?? undefined;
   }
 
   return all;
