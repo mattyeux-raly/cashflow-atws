@@ -264,25 +264,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     for (const tx of bankTransactions) {
       const cashflowType = categorizeByLabel(tx.label, tx.amount);
 
-      await supabase
+      const { error: upsertError } = await supabase
         .from('transactions')
-        .upsert({
+        .insert({
           company_id: company.id,
           pennylane_id: tx.id,
           date: tx.date,
           label: tx.label,
           amount: tx.amount,
           currency: tx.currency ?? 'EUR',
-          category: null,
-          subcategory: null,
           cashflow_type: cashflowType,
           bank_account: tx.bank_account_name ?? null,
           is_reconciled: tx.is_reconciled ?? false,
           pennylane_metadata: {},
           source: 'pennylane',
-        }, { onConflict: 'pennylane_id' });
+        });
 
-      totalSynced++;
+      if (upsertError) {
+        // Skip les doublons (déjà importé), log les autres erreurs
+        if (!upsertError.message?.includes('duplicate')) {
+          console.error('Insert error:', upsertError.message, 'tx:', tx.id);
+        }
+      } else {
+        totalSynced++;
+      }
     }
 
     const durationMs = Date.now() - startTime;
