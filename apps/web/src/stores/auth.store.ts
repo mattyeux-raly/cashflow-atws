@@ -68,6 +68,22 @@ export const useAuthStore = create<AuthState>((set) => ({
               updatedAt: firm.updated_at,
             } : null,
           });
+        } else {
+          // Auth réussie mais pas encore de profil — connecter quand même
+          set({
+            isAuthenticated: true,
+            user: {
+              id: session.user.id,
+              firmId: '',
+              role: 'owner' as UserRole,
+              fullName: session.user.email ?? 'Utilisateur',
+              gdprConsentAt: new Date().toISOString(),
+              gdprConsentVersion: '1.0',
+              lastLoginAt: new Date().toISOString(),
+              createdAt: new Date().toISOString(),
+            },
+            firm: null,
+          });
         }
       }
     } finally {
