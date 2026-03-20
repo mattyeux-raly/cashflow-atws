@@ -97,12 +97,8 @@ async function fetchAllTransactions(apiKey: string, since?: string): Promise<Pen
   let cursor: string | undefined;
   let hasMore = true;
 
-  // REQUIREMENT: Filtre date pour limiter le volume — format Pennylane v2
-  const dateFilter = since ?? '2025-01-01';
-
   while (hasMore) {
-    // REQUIREMENT: limit=10 pour test initial, pas de filtre pour valider l'appel de base
-    let url = `/transactions?limit=10`;
+    let url = `/transactions?limit=100`;
     if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
 
     const response = await pennylaneRequest(apiKey, url) as PaginatedResponse;
@@ -119,8 +115,7 @@ async function fetchAllTransactions(apiKey: string, since?: string): Promise<Pen
       });
     }
 
-    // REQUIREMENT: Une seule page pour le test initial
-    hasMore = false;
+    hasMore = response.has_more === true;
     cursor = response.next_cursor ?? undefined;
   }
 
@@ -219,14 +214,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(403).json({ error: 'Rôle insuffisant pour la synchronisation' });
     }
 
-    // Rate limit — désactivé temporairement pour debug
-    // const rateCheck = checkRateLimit(userId);
-    // if (!rateCheck.allowed) {
-    //   return res.status(429).json({
-    //     error: 'Synchronisation en cours. Réessayez dans 5 minutes.',
-    //     retryAfterMs: rateCheck.retryAfterMs,
-    //   });
-    // }
+    // Rate limit — 1 sync par 5 minutes par utilisateur
+    const rateCheck = checkRateLimit(userId);
+    if (!rateCheck.allowed) {
+      return res.status(429).json({
+        error: 'Synchronisation en cours. Réessayez dans 5 minutes.',
+        retryAfterMs: rateCheck.retryAfterMs,
+      });
+    }
 
     // SECURITY: Clé API Pennylane côté serveur uniquement
     const apiKey = process.env.PENNYLANE_API_KEY;
