@@ -1,5 +1,5 @@
-// REQUIREMENT: Pennylane API v2 client with OAuth2, retry, and rate limiting
-// SECURITY: Never log tokens, never store tokens in plain text
+// REQUIREMENT: Pennylane API v2 client with API key, retry, and rate limiting
+// SECURITY: Never log API key
 
 import { z } from 'zod';
 
@@ -67,65 +67,11 @@ const PennylaneListResponseSchema = z.object({
   }),
 });
 
-export interface PennylaneClientConfig {
-  accessToken: string;
-  refreshToken: string;
-  tokenExpiresAt: Date;
-  clientId: string;
-  clientSecret: string;
-  onTokenRefreshed?: (newAccessToken: string, newRefreshToken: string, expiresAt: Date) => Promise<void>;
-}
-
 export class PennylaneClient {
-  private config: PennylaneClientConfig;
+  private apiKey: string;
 
-  constructor(config: PennylaneClientConfig) {
-    this.config = config;
-  }
-
-  // REQUIREMENT: Check token expiry before every API call
-  private async ensureValidToken(): Promise<string> {
-    if (new Date() >= this.config.tokenExpiresAt) {
-      await this.refreshAccessToken();
-    }
-    return this.config.accessToken;
-  }
-
-  // REQUIREMENT: Refresh OAuth token
-  private async refreshAccessToken(): Promise<void> {
-    const response = await fetch('https://app.pennylane.com/oauth/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        grant_type: 'refresh_token',
-        refresh_token: this.config.refreshToken,
-        client_id: this.config.clientId,
-        client_secret: this.config.clientSecret,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new PennylaneApiError(
-        'Échec du rafraîchissement du token. Reconnexion Pennylane nécessaire.',
-        response.status,
-        'TOKEN_REFRESH_FAILED',
-      );
-    }
-
-    const data = await response.json() as {
-      access_token: string;
-      refresh_token: string;
-      expires_in: number;
-    };
-    const expiresAt = new Date(Date.now() + data.expires_in * 1000);
-
-    this.config.accessToken = data.access_token;
-    this.config.refreshToken = data.refresh_token;
-    this.config.tokenExpiresAt = expiresAt;
-
-    if (this.config.onTokenRefreshed) {
-      await this.config.onTokenRefreshed(data.access_token, data.refresh_token, expiresAt);
-    }
+  constructor(apiKey: string) {
+    this.apiKey = apiKey;
   }
 
   // REQUIREMENT: Retry with exponential backoff
@@ -135,12 +81,11 @@ export class PennylaneClient {
     retryCount: number = 0,
   ): Promise<T> {
     checkRateLimit();
-    const token = await this.ensureValidToken();
 
     const response = await fetch(`${PENNYLANE_BASE_URL}${path}`, {
       ...options,
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${this.apiKey}`,
         'Content-Type': 'application/json',
         ...options.headers,
       },
@@ -159,10 +104,22 @@ export class PennylaneClient {
       );
     }
 
-    // Handle unauthorized — try refresh once
-    if (response.status === 401 && retryCount === 0) {
-      await this.refreshAccessToken();
-      return this.request<T>(path, options, retryCount + 1);
+    // Handle unauthorized
+    if (response.status === 401) {
+      throw new PennylaneApiError(
+        'Clé API Pennylane invalide ou expirée. Vérifiez votre token.',
+        401,
+        'UNAUTHORIZED',
+      );
+    }
+
+    // Handle forbidden (wrong scope)
+    if (response.status === 403) {
+      throw new PennylaneApiError(
+        'Scope insuffisant. Vérifiez que le token a le scope transactions:readonly.',
+        403,
+        'FORBIDDEN',
+      );
     }
 
     // Handle server errors with retry
@@ -201,24 +158,12 @@ export class PennylaneClient {
     return allItems;
   }
 
-  async getCompanies() {
-    return this.fetchAllPaginated<{ id: string; name: string; siren: string | null; currency: string }>('/companies');
-  }
-
   // REQUIREMENT: Utiliser les transactions bancaires, pas les écritures comptables
-  async getBankTransactions(companyId: string, since?: string) {
+  async getBankTransactions(since?: string) {
     const params: Record<string, string> = {};
     if (since) params['filter[date_from]'] = since;
-    const rawData = await this.fetchAllPaginated<unknown>(`/companies/${companyId}/bank_transactions`, params);
+    const rawData = await this.fetchAllPaginated<unknown>('/transactions', params);
     return rawData.map((item) => PennylaneBankTransactionSchema.parse(item));
-  }
-
-  async getCustomerInvoices(companyId: string) {
-    return this.fetchAllPaginated<unknown>(`/companies/${companyId}/customer_invoices`);
-  }
-
-  async getSupplierInvoices(companyId: string) {
-    return this.fetchAllPaginated<unknown>(`/companies/${companyId}/supplier_invoices`);
   }
 }
 

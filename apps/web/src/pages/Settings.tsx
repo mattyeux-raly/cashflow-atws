@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import { Link2, Unlink, Users, Bell, Check, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { RefreshCw, Users, Check, Key } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -11,18 +11,7 @@ import { useMappingOverrides } from '../hooks/useMappingOverrides';
 export function Settings() {
   const { user, firm } = useAuthStore();
   const { syncPennylane, isLoading } = useCashflowStore();
-  const [pennylaneConnected, setPennylaneConnected] = useState(false);
   const { customRules, saveRules, isSaving } = useMappingOverrides();
-
-  const handleConnectPennylane = () => {
-    // REQUIREMENT: OAuth2 flow — redirect to Pennylane authorization
-    const clientId = import.meta.env.VITE_PENNYLANE_CLIENT_ID;
-    const redirectUri = `${window.location.origin}/settings?pennylane_callback=true`;
-    const scope = 'accounting:read';
-    // NOTE: In production, replace with actual Pennylane OAuth URL
-    const authUrl = `https://app.pennylane.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}`;
-    window.location.href = authUrl;
-  };
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -31,29 +20,28 @@ export function Settings() {
       {/* Pennylane Connection */}
       <Card>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Connexion Pennylane
+          Synchronisation Pennylane
         </h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          Connectez votre compte Pennylane pour synchroniser automatiquement vos transactions comptables.
+          Les transactions bancaires sont synchronisées depuis Pennylane via clé API.
+          Configurez votre token dans Pennylane {'>'} Paramètres {'>'} Connectivité {'>'} Développeurs
+          avec le scope <code className="px-1.5 py-0.5 bg-gray-100 dark:bg-slate-700 rounded text-xs font-mono">transactions:readonly</code>.
         </p>
-        {pennylaneConnected ? (
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-success">
-              <Check className="w-5 h-5" />
-              <span className="text-sm font-medium">Connecté</span>
-            </div>
-            <Button variant="secondary" size="sm" onClick={() => syncPennylane()} isLoading={isLoading}>
-              Synchroniser maintenant
-            </Button>
-            <Button variant="danger" size="sm" leftIcon={<Unlink className="w-4 h-4" />}>
-              Déconnecter
-            </Button>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+            <Key className="w-4 h-4" />
+            <span className="text-sm font-medium">Clé API configurée côté serveur</span>
           </div>
-        ) : (
-          <Button onClick={handleConnectPennylane} leftIcon={<Link2 className="w-4 h-4" />}>
-            Connecter Pennylane
+          <Button
+            variant="primary"
+            size="sm"
+            leftIcon={<RefreshCw className="w-4 h-4" />}
+            onClick={() => syncPennylane()}
+            isLoading={isLoading}
+          >
+            Synchroniser maintenant
           </Button>
-        )}
+        </div>
       </Card>
 
       {/* Alert Settings */}

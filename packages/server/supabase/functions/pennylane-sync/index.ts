@@ -1,9 +1,8 @@
 // REQUIREMENT: Sync bank transactions from Pennylane to local database
-// SECURITY: Admin+ role required, tokens decrypted from pgcrypto
+// SECURITY: API key stored as Supabase Edge Function secret
 
 import { createClient } from '@supabase/supabase-js';
 import { PennylaneClient, PennylaneApiError } from '../_shared/pennylane-client.ts';
-import { decryptToken, encryptToken } from '../_shared/encryption.ts';
 import { verifyAuth, requireRole, AuthError } from '../_shared/auth.ts';
 import { checkRateLimit } from '../_shared/rate-limiter.ts';
 
@@ -65,105 +64,78 @@ Deno.serve(async (req: Request) => {
       }), { status: 429, headers: { 'Content-Type': 'application/json' } });
     }
 
+    // REQUIREMENT: Clé API directe — pas d'OAuth
+    const apiKey = Deno.env.get('PENNYLANE_API_KEY');
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: 'Clé API Pennylane non configurée' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { data: connection, error: connError } = await supabase
-      .from('pennylane_connections')
-      .select('*')
+    // Récupérer l'entreprise liée au cabinet
+    const { data: company, error: companyError } = await supabase
+      .from('companies')
+      .select('id')
       .eq('firm_id', auth.firmId)
+      .limit(1)
       .single();
 
-    if (connError || !connection) {
-      return new Response(JSON.stringify({ error: 'Connexion Pennylane non configurée' }), {
+    if (companyError || !company) {
+      return new Response(JSON.stringify({ error: 'Aucune entreprise trouvée pour ce cabinet' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    await supabase
-      .from('pennylane_connections')
-      .update({ sync_status: 'syncing', sync_error_message: null })
-      .eq('id', connection.id);
+    const client = new PennylaneClient(apiKey);
 
-    const accessToken = await decryptToken(supabase, connection.access_token_encrypted);
-    const refreshToken = await decryptToken(supabase, connection.refresh_token_encrypted);
+    // Chercher la date de dernière sync
+    const { data: lastTx } = await supabase
+      .from('transactions')
+      .select('date')
+      .eq('company_id', company.id)
+      .eq('source', 'pennylane')
+      .order('date', { ascending: false })
+      .limit(1)
+      .single();
 
-    const client = new PennylaneClient({
-      accessToken,
-      refreshToken,
-      tokenExpiresAt: new Date(connection.token_expires_at),
-      clientId: Deno.env.get('PENNYLANE_CLIENT_ID')!,
-      clientSecret: Deno.env.get('PENNYLANE_CLIENT_SECRET')!,
-      onTokenRefreshed: async (newAccess, newRefresh, expiresAt) => {
-        const encAccess = await encryptToken(supabase, newAccess);
-        const encRefresh = await encryptToken(supabase, newRefresh);
-        await supabase
-          .from('pennylane_connections')
-          .update({
-            access_token_encrypted: encAccess,
-            refresh_token_encrypted: encRefresh,
-            token_expires_at: expiresAt.toISOString(),
-          })
-          .eq('id', connection.id);
-      },
-    });
+    const sinceDate = lastTx?.date
+      ?? new Date(Date.now() - 3 * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-    const { data: companies } = await supabase
-      .from('companies')
-      .select('id, pennylane_company_id')
-      .eq('firm_id', auth.firmId)
-      .not('pennylane_company_id', 'is', null);
+    const startTime = Date.now();
+    const bankTransactions = await client.getBankTransactions(sinceDate);
 
     let totalSynced = 0;
-    const startTime = Date.now();
+    for (const tx of bankTransactions) {
+      const cashflowType = categorizeByLabel(tx.label, tx.amount);
 
-    for (const company of companies ?? []) {
-      if (!company.pennylane_company_id) continue;
+      await supabase
+        .from('transactions')
+        .upsert({
+          company_id: company.id,
+          pennylane_id: tx.id,
+          date: tx.date,
+          label: tx.label,
+          amount: tx.amount,
+          currency: tx.currency ?? 'EUR',
+          category: null,
+          subcategory: null,
+          cashflow_type: cashflowType,
+          bank_account: tx.bank_account_name ?? null,
+          is_reconciled: tx.is_reconciled ?? false,
+          pennylane_metadata: {},
+          source: 'pennylane',
+        }, { onConflict: 'pennylane_id' });
 
-      const sinceDate = connection.last_sync_at
-        ? connection.last_sync_at.split('T')[0]
-        : new Date(Date.now() - 3 * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-      // REQUIREMENT: Utiliser l'endpoint bank_transactions (pas journal_entries)
-      const bankTransactions = await client.getBankTransactions(company.pennylane_company_id, sinceDate);
-
-      for (const tx of bankTransactions) {
-        const cashflowType = categorizeByLabel(tx.label, tx.amount);
-
-        await supabase
-          .from('transactions')
-          .upsert({
-            company_id: company.id,
-            pennylane_id: tx.id,
-            date: tx.date,
-            label: tx.label,
-            amount: tx.amount,
-            currency: tx.currency ?? 'EUR',
-            category: null,
-            subcategory: null,
-            cashflow_type: cashflowType,
-            bank_account: tx.bank_account_name ?? null,
-            is_reconciled: tx.is_reconciled ?? false,
-            pennylane_metadata: {},
-            source: 'pennylane',
-          }, { onConflict: 'pennylane_id' });
-
-        totalSynced++;
-      }
+      totalSynced++;
     }
 
     const durationMs = Date.now() - startTime;
-
-    await supabase
-      .from('pennylane_connections')
-      .update({
-        last_sync_at: new Date().toISOString(),
-        sync_status: 'success',
-        sync_error_message: null,
-      })
-      .eq('id', connection.id);
 
     await supabase.from('audit_log').insert({
       firm_id: auth.firmId,
@@ -188,21 +160,11 @@ Deno.serve(async (req: Request) => {
     }
 
     if (error instanceof PennylaneApiError) {
-      try {
-        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-        const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-        const supabase = createClient(supabaseUrl, supabaseServiceKey);
-        const auth = await verifyAuth(req);
-        await supabase
-          .from('pennylane_connections')
-          .update({ sync_status: 'error', sync_error_message: error.message })
-          .eq('firm_id', auth.firmId);
-      } catch {
-        // Silently fail
-      }
-
-      return new Response(JSON.stringify({ error: 'Erreur de synchronisation Pennylane' }), {
-        status: 502,
+      return new Response(JSON.stringify({
+        error: `Erreur Pennylane: ${error.message}`,
+        code: error.code,
+      }), {
+        status: error.status === 401 || error.status === 403 ? error.status : 502,
         headers: { 'Content-Type': 'application/json' },
       });
     }
