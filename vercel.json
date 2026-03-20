@@ -3,7 +3,7 @@
   "framework": "vite",
   "installCommand": "pnpm install",
   "buildCommand": "pnpm build",
-  "outputDirectory": "dist",
+  "outputDirectory": "apps/web/dist",
   "regions": ["cdg1"],
   "rewrites": [
     { "source": "/((?!api|assets|static).*)", "destination": "/index.html" }

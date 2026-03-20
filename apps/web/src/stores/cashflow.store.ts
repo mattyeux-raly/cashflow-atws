@@ -159,11 +159,20 @@ export const useCashflowStore = create<CashflowState>((set, get) => ({
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Non authentifié');
 
-      const response = await supabase.functions.invoke('pennylane-sync', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
+      // REQUIREMENT: Appel via Vercel Serverless Function (pas Edge Function Supabase)
+      const response = await fetch('/api/pennylane-sync', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
       });
 
-      if (response.error) throw new Error('Erreur de synchronisation');
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        const detail = body.error ?? `HTTP ${response.status} — ${response.statusText}`;
+        throw new Error(`Sync échouée: ${detail}`);
+      }
 
       const { selectedCompanyId } = get();
       if (selectedCompanyId) {
